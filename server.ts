@@ -1,6 +1,7 @@
 import { app } from "./app";
 import dotenv from "dotenv";
 import { pool } from "./shared/database/pg";
+import { redis } from "./shared/database/redis";
 import { Server } from "node:http";
 
 import { commandBus } from "./shared/bus/command-bus";
@@ -56,6 +57,17 @@ async function bootstrap() {
     const server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
+
+    pool.query(`SELECT 1=1`).catch((err) => { console.log("Failed to query PG", err.code, err.message); gracefulShutdown(server) });
+    await redis.ping();
+
+    await redis.xgroup(
+      "CREATE",
+      "order_events",
+      "order_projection_group",
+      "0",
+      "MKSTREAM"
+    );
 
     // Graceful shutdown
     process.on("SIGTERM", () => gracefulShutdown(server));
