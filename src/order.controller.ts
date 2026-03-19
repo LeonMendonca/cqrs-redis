@@ -8,6 +8,8 @@ import { CancelOrderCommand } from "../commands/cancel-order.command";
 
 import { GetOrderQuery } from "../queries/get-order.query";
 import { ListOrdersQuery } from "../queries/list-orders.query";
+import { redis } from "../shared/database/redis";
+import { STREAM } from "../constants/redis-stream";
 
 export const orderRouter = Router();
 
@@ -23,6 +25,7 @@ orderRouter.post(
       const command = new CreateOrderCommand(userId, items);
 
       const result = await commandBus.execute(command);
+      await redis.xadd(STREAM, "*", "eventType", "ORDER_CREATED", "orderId", `${(result as any).orderId}`)
 
       res.status(201).json(result);
     } catch (error) {

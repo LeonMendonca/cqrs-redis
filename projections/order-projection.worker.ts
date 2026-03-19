@@ -1,17 +1,18 @@
 import { redis } from "../shared/database/redis";
 import { pool } from "../shared/database/pg";
+import { randomUUID } from "node:crypto";
+import { STREAM, GROUP } from "../constants/redis-stream";
 
-const STREAM = "order_events";
-const GROUP = "order_projection_group";
+const CONSUMER = `order_consumer_${randomUUID()}`
 
-async function consumer(consumer: string) {
+async function consumer() {
     console.log("Redis Projection Worker started...");
     while (true) {
         try {
             const response = await redis.xreadgroup(
                 "GROUP",
                 GROUP,
-                consumer,
+                CONSUMER,
                 "COUNT",
                 10,
                 "BLOCK",
@@ -22,6 +23,8 @@ async function consumer(consumer: string) {
             ) as any;
 
             if (!response) continue;
+
+            console.log(response);
 
             for (const [, messages] of response) {
                 for (const [id, fields] of messages) {
@@ -85,4 +88,4 @@ async function handleOrderCreated(orderId: string) {
   }
 }
 
-consumer('c1')
+consumer();

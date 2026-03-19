@@ -17,6 +17,8 @@ import { GetOrderHandler } from "./queries/get-order.handler";
 
 import { ListOrdersQuery } from "./queries/list-orders.query";
 import { ListOrdersHandler } from "./queries/list-orders.handler";
+import { createGroup } from "./projections/create-group";
+import { GROUP, STREAM } from "./constants/redis-stream";
 
 dotenv.config();
 
@@ -60,22 +62,15 @@ async function bootstrap() {
 
     pool.query(`SELECT 1=1`).catch((err) => { console.log("Failed to query PG", err.code, err.message); gracefulShutdown(server) });
     await redis.ping();
-
-    await redis.xgroup(
-      "CREATE",
-      "order_events",
-      "order_projection_group",
-      "0",
-      "MKSTREAM"
-    );
-
+    await createGroup(STREAM, GROUP).catch((err) => console.log(err.message));
+ 
     // Graceful shutdown
     process.on("SIGTERM", () => gracefulShutdown(server));
 
     process.on("SIGINT", () => gracefulShutdown(server));
 
   } catch (error) {
-    console.error("Failed to start server:", error);
+    console.error("Failed to start server:", error)
     process.exit(1);
   }
 }
