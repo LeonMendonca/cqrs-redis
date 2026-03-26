@@ -6,6 +6,9 @@ import { STREAM, GROUP } from "../constants/redis-stream";
 const CONSUMER = `order_consumer_${randomUUID()}`
 
 async function consumer() {
+    console.log("Claming PEL...");
+    await retryPendingMessages();
+
     console.log("Redis Projection Worker started...");
     while (true) {
         try {
@@ -42,6 +45,34 @@ async function consumer() {
         }
     }
 
+}
+
+async function retryPendingMessages() {
+  const minIdleTime = 5000; // 5 sec
+
+  const [nextCursor, messages] = await redis.xautoclaim(
+    STREAM,
+    GROUP,
+    CONSUMER,
+    minIdleTime,
+    "0-0",
+    "COUNT",
+    10
+  );
+
+  for (const [id, fields] of (messages as Array<any>)) {
+    const parsed = parseFields(fields);
+
+    try {
+      if (parsed.eventType === "ORDER_CREATED") {
+        await handleOrderCreated(parsed.orderId);
+      }
+
+      await redis.xack(STREAM, GROUP, id);
+    } catch (err) {
+      console.error("Retry failed:", err);
+    }
+  }
 }
 
 function parseFields(fields: string[]) {
